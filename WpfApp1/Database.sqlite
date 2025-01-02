@@ -1,0 +1,16 @@
+﻿CREATE TABLE People (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL,
+    Surname TEXT NOT NULL,
+    Age INTEGER NOT NULL,
+    Branch TEXT ,
+);
+
+CREATE TABLE IF NOT EXISTS Books (
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    BookName TEXT NOT NULL,
+    Author TEXT NOT NULL,
+    StaffID INTEGER NOT NULL, -- Staff who signed the book out (Foreign Key)
+    SignOutDate TEXT NOT NULL, -- Date of the signing out
+    FOREIGN KEY (StaffID) REFERENCES People(ID) -- Foreign Key linking to the People table
+);
