@@ -107,14 +107,14 @@ namespace WpfApp1
             return books;
         }
 
-        public static List<Person> GetPeople()
+        public static List<Person> GetPeople(int page, int pageSize)
         {
             var people = new List<Person>();
             using (var connection = new SQLiteConnection(ConnectionString))
             {
                 connection.Open();
-                string selectQuery = "SELECT * FROM People";
-                using (var command = new SQLiteCommand(selectQuery, connection))
+                string query = $"SELECT * FROM People LIMIT {pageSize} OFFSET {(page - 1) * pageSize}";
+                using (var command = new SQLiteCommand(query, connection))
                 using (var reader = command.ExecuteReader())
                 {
                     while (reader.Read())
@@ -132,37 +132,73 @@ namespace WpfApp1
             return people;
         }
 
-        public static void AddPerson(string name, int age, string branch)
+        public static int GetPeopleCount()
         {
             using (var connection = new SQLiteConnection(ConnectionString))
             {
                 connection.Open();
-                string insertQuery = "INSERT INTO People (Name, Age, Branch) VALUES (@Name, @Age, @Branch)";
-                using (var command = new SQLiteCommand(insertQuery, connection))
+                string query = "SELECT COUNT(*) FROM People";
+                using (var command = new SQLiteCommand(query, connection))
                 {
-                    command.Parameters.AddWithValue("@Name", name);
-                    command.Parameters.AddWithValue("@Age", age);
-                    command.Parameters.AddWithValue("@Branch", branch);
+                    return Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+        }
+
+        public static void AddPerson(Person person)
+        {
+            using (var connection = new SQLiteConnection(ConnectionString))
+            {
+                connection.Open();
+                string query = "INSERT INTO People (Name, Age, Branch) VALUES (@Name, @Age, @Branch)";
+                using (var command = new SQLiteCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Name", person.Name);
+                    command.Parameters.AddWithValue("@Age", person.Age);
+                    command.Parameters.AddWithValue("@Branch", person.Branch);
+                    //command.Parameters.AddWithValue("@Branch", person.Branch ?? string.Empty);
                     command.ExecuteNonQuery();
                 }
             }
         }
 
-        public static void UpdatePerson(int id, string name, int age, string branch)
+        public static void UpdatePerson(Person person)
         {
             using (var connection = new SQLiteConnection(ConnectionString))
             {
                 connection.Open();
-                string updateQuery = "UPDATE People SET Name = @Name, Age = @Age, Branch = @Branch WHERE ID = @ID";
-                using (var command = new SQLiteCommand(updateQuery, connection))
+                string query = "UPDATE People SET Name = @Name, Age = @Age, Branch=@Branch WHERE ID = @ID";
+                using (var command = new SQLiteCommand(query, connection))
                 {
-                    command.Parameters.AddWithValue("@Name", name);
-                    command.Parameters.AddWithValue("@Age", age);
-                    command.Parameters.AddWithValue("@ID", id);
-                    command.Parameters.AddWithValue("@Branch", branch);
+                    command.Parameters.AddWithValue("@ID", person.ID);
+                    command.Parameters.AddWithValue("@Name", person.Name);
+                    command.Parameters.AddWithValue("@Age", person.Age);
+                    command.Parameters.AddWithValue("@Branch", person.Branch);
                     command.ExecuteNonQuery();
                 }
             }
+
+        }
+        public static void UpdateBook(int bookId, string bookName, string author, int staffId, DateTime signOutDate)
+        {
+            using (var connection = new SQLiteConnection(ConnectionString))
+            {
+                connection.Open();
+                string updateQuery = @"
+                UPDATE Books 
+                SET BookName = @BookName, Author = @Author, StaffID = @StaffID, SignOutDate = @SignOutDate 
+                WHERE ID = @ID"; 
+                using (var command = new SQLiteCommand(updateQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@ID", bookId);
+                    command.Parameters.AddWithValue("@BookName", bookName);
+                    command.Parameters.AddWithValue("@Author", author);
+                    command.Parameters.AddWithValue("@StaffID", staffId);
+                    command.Parameters.AddWithValue("@SignOutDate", signOutDate);
+                    command.ExecuteNonQuery();
+                }
+            }
+
         }
 
         public static void DeletePerson(int id)
@@ -170,8 +206,21 @@ namespace WpfApp1
             using (var connection = new SQLiteConnection(ConnectionString))
             {
                 connection.Open();
-                string deleteQuery = "DELETE FROM People WHERE ID = @ID";
-                using (var command = new SQLiteCommand(deleteQuery, connection))
+                string query = "DELETE FROM People WHERE ID = @ID";
+                using (var command = new SQLiteCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@ID", id);
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+        public static void DeleteBook(int id)
+        {
+            using (var connection = new SQLiteConnection(ConnectionString))
+            {
+                connection.Open();
+                string query = "DELETE FROM Books WHERE ID = @ID";
+                using (var command = new SQLiteCommand(query, connection))
                 {
                     command.Parameters.AddWithValue("@ID", id);
                     command.ExecuteNonQuery();
@@ -205,10 +254,42 @@ namespace WpfApp1
             }
             return people;
         }
-        
+        public static List<Book> SearchBooksByName(string bookName)
+        {
+            var books = new List<Book>();
+            using (var connection = new SQLiteConnection(ConnectionString))
+            {
+                connection.Open();
+                string searchQuery = @"
+            SELECT b.ID, b.BookName, b.Author, b.SignOutDate, p.Name AS StaffName
+            FROM Books b
+            JOIN People p ON b.StaffID = p.ID
+            WHERE b.BookName LIKE @BookName";
+                using (var command = new SQLiteCommand(searchQuery, connection))
+                {
+                    command.Parameters.AddWithValue("@BookName", $"%{bookName}%"); // Partial match
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            books.Add(new Book
+                            {
+                                ID = reader.GetInt32(0),
+                                BookName = reader.GetString(1),
+                                Author = reader.GetString(2),
+                                SignOutDate = DateTime.Parse(reader.GetString(3)),
+                                StaffName = reader.GetString(4)
+                            });
+                        }
+                    }
+                }
+            }
+            return books;
+        }
 
 
-        
+
+
 
     }
 }

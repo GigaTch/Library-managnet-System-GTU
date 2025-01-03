@@ -17,24 +17,145 @@ namespace WpfApp1
 {
     public partial class MainWindow : Window
     {
-        private ObservableCollection<Person> _people = new ObservableCollection<Person>();
-        private int _nextId = 1;
+        public ObservableCollection<Person> PeopleList { get; set; }
+        public ObservableCollection<Book> BooksList { get; set; }
+        //private ObservableCollection<Person> _people = new ObservableCollection<Person>();
+
+        private int currentPage = 1;
+        private int pageSize = 10; // Number of records per page
+        private int totalRecords;
+
         public MainWindow()
         {
             InitializeComponent();
-            DatabaseHelper.InitializeDatabase(); // Ensure database is ready
+            DatabaseHelper.InitializeDatabase();
+            PeopleList = new ObservableCollection<Person>();
+            BooksList = new ObservableCollection<Book>();
+            DataContext = this;
+
+            ComboBoxStaff.ItemsSource = PeopleList;
+            ComboBoxStaff.DisplayMemberPath = "Name";
+            ComboBoxStaff.SelectedValuePath = "ID";
+
+
+            // Load data when the window is initialized
             LoadPeople();
+            LoadBooks();
+        }
+
+
+        private void LoadBooks()
+        {
+            var books = DatabaseHelper.GetAllBooks();
+            BooksList.Clear();
+            foreach (var book in books)
+            {
+                BooksList.Add(book);
+            }
+            DataGridBooks.ItemsSource = BooksList;
+        }
+        private void ButtonAddBook_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+
+
+                string bookName = TextBoxBookName.Text;
+                string author = TextBoxAuthor.Text;
+                int staffId = (int)ComboBoxStaff.SelectedValue;
+                DateTime signOutDate = DatePickerSignOutDate.SelectedDate.GetValueOrDefault();
+
+                if (string.IsNullOrEmpty(bookName) || string.IsNullOrEmpty(author) || staffId == 0)
+                {
+                    MessageBox.Show("შეავსეთ ყველა ველი", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                DatabaseHelper.AddBook(bookName, author, staffId, signOutDate);
+                LoadBooks(); // Refresh the Books DataGrid
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"შეცდომა! : {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        private void ButtonDeleteBook_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataGridBooks.SelectedItem is Book selectedBook)
+            {
+                DatabaseHelper.DeleteBook(selectedBook.ID);
+                LoadBooks();
+            }
+            else
+            {
+                MessageBox.Show("წასაშლელათ მონიშნეთ მონაცემები.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        private void ButtonUpdateBook_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+
+                //if (DataGridBooks.SelectedItem is Book selectedBook)
+                //{
+
+                //    selectedBook.BookName = TextBoxBookName.Text; // Replace with form input
+                //    selectedBook.Author = TextBoxAuthor.Text;
+                //    selectedBook.StaffName = ComboBoxStaff.Text;
+                //    selectedBook.SignOutDate = DatePickerSignOutDate.DisplayDate;
+                //    DatabaseHelper.UpdateBook(selectedBook);
+
+
+                //    LoadPeople();
+
+                //}
+                if (DataGridBooks.SelectedItem is Book selectedBook)
+                {
+                    string bookName = TextBoxBookName.Text;
+                    string author = TextBoxAuthor.Text;
+                    int staffId = (int)ComboBoxStaff.SelectedValue;
+                    DateTime signOutDate = DatePickerSignOutDate.SelectedDate.GetValueOrDefault();
+
+                    if (string.IsNullOrEmpty(bookName) || string.IsNullOrEmpty(author) || staffId == 0)
+                    {
+                        MessageBox.Show("შეაცსეთ ყველა ველი!.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    // Update book in the database
+                    DatabaseHelper.UpdateBook(selectedBook.ID, bookName, author, staffId, signOutDate);
+                    LoadBooks(); // Refresh the Books DataGrid
+                }
+                else
+                {
+                    MessageBox.Show("მონიშნეთ მონაცემები.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"შეცდომა: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void LoadPeople()
         {
-            _people.Clear();
-            foreach (var person in DatabaseHelper.GetPeople())
+            // Get total number of people records
+            totalRecords = DatabaseHelper.GetPeopleCount();
+            int totalPages = (int)Math.Ceiling((double)totalRecords / pageSize);
+
+            // Load the current page of people
+            var people = DatabaseHelper.GetPeople(currentPage, pageSize);
+            PeopleList.Clear();
+            foreach (var person in people)
             {
-                _people.Add(person);
+                PeopleList.Add(person);
             }
-            DataGridItems.ItemsSource = _people;
+
+            DataGridPeople.ItemsSource = PeopleList;
+            TextBlockPageNumber.Text = $"Page {currentPage} of {totalPages}";
         }
+
+        // Create a new person (open a dialog or form for user input)
         private void ButtonCreate_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -42,88 +163,152 @@ namespace WpfApp1
                 // Validate Age Input
                 if (!int.TryParse(TextBoxAge.Text, out int age))
                 {
-                    MessageBox.Show("Please enter a valid number for Age.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("შეიყვანეთ ნორმალური პირადი ნომერი", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-
                 // Validate Name and Branch
                 string name = TextBoxName.Text.Trim();
                 string branch = TextBoxBranch.Text.Trim();
 
                 if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(branch))
                 {
-                    MessageBox.Show("Name and Branch cannot be empty.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("გთხოვთ შეავსოთ სახელის და ფილიალის გრაფა!", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-
                 // Add the Person to the Database
-                DatabaseHelper.AddPerson(name, age, branch);
+                var newPerson = new Person
+                {
+                    Name = name,
+                    Age = age,
+                    Branch = branch
+                };
+                DatabaseHelper.AddPerson(newPerson);
 
                 // Reload the DataGrid
                 LoadPeople();
-
-                // Clear Input Fields
-                ClearFields();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"შეცდომა! : {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void ButtonRead_Click(object sender, RoutedEventArgs e)
-        {
-            if (DataGridItems.SelectedItem is Person selectedPerson)
-            {
-                TextBoxName.Text = selectedPerson.Name;
-                TextBoxAge.Text = selectedPerson.Age.ToString();
-                TextBoxBranch.Text = selectedPerson.Branch;
-            }
-        }
 
+        // Update the selected person
         private void ButtonUpdate_Click(object sender, RoutedEventArgs e)
         {
-            if (DataGridItems.SelectedItem is Person selectedPerson && int.TryParse(TextBoxAge.Text, out int age))
+
+            if (DataGridPeople.SelectedItem is Person selectedPerson && int.TryParse(TextBoxAge.Text, out int age))
             {
                 string branch = TextBoxBranch.Text.Trim();
-                DatabaseHelper.UpdatePerson(selectedPerson.ID, TextBoxName.Text, age, branch);
+                selectedPerson.Name = TextBoxName.Text; // Replace with form input
+                selectedPerson.Age = age;
+                selectedPerson.Branch = branch;
+                DatabaseHelper.UpdatePerson(selectedPerson);
+
+
                 LoadPeople();
-                ClearFields();
+
             }
         }
 
+        // Delete the selected person
         private void ButtonDelete_Click(object sender, RoutedEventArgs e)
         {
-            if (DataGridItems.SelectedItem is Person selectedPerson)
+            if (DataGridPeople.SelectedItem is Person selectedPerson)
             {
                 DatabaseHelper.DeletePerson(selectedPerson.ID);
                 LoadPeople();
-                ClearFields();
+            }
+            else
+            {
+                MessageBox.Show("წასაშლელათ მონიშნეთ მონაცემები", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
+
+        // Previous page button
+        private void ButtonPrevious_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentPage > 1)
+            {
+                currentPage--;
+                LoadPeople();
+            }
+        }
+
+        // Next page button
+        private void ButtonNext_Click(object sender, RoutedEventArgs e)
+        {
+            int totalPages = (int)Math.Ceiling((double)totalRecords / pageSize);
+            if (currentPage < totalPages)
+            {
+                currentPage++;
+                LoadPeople();
+            }
+        }
+
+        // Clear the input fields
         private void ClearFields()
         {
             TextBoxName.Clear();
             TextBoxAge.Clear();
         }
+
+
         private void SearchButton_Click(object sender, RoutedEventArgs e)
         {
-            string searchQuery = SearchTextBox.Text.Trim();
-            if (!string.IsNullOrEmpty(searchQuery))
-            {
-                var searchResults = DatabaseHelper.SearchPeopleByName(searchQuery);
-                _people.Clear();
-                foreach (var person in searchResults)
+            
+            try
+            {   
+                string searchQuery = SearchTextBox.Text.Trim();         
+                if (!string.IsNullOrEmpty(searchQuery))
                 {
-                    _people.Add(person);
+                    var searchResults = DatabaseHelper.SearchPeopleByName(searchQuery);
+                    PeopleList.Clear();
+                    foreach (var person in searchResults)
+                    {
+                        PeopleList.Add(person);
+                    }
                 }
+                else
+                {
+                    // If the search query is empty, reload all data
+                    LoadPeople();
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"შეცდომა! : {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
+
+        }
+        private void ButtonSearchBooks_Click(object sender, RoutedEventArgs e)
+        {
+            string searchName = TextBoxSearchBookName.Text.Trim();
+
+            if (string.IsNullOrEmpty(searchName))
+            {
+                MessageBox.Show("შეიყვანეთ წიგნის სათაური.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var searchResults = DatabaseHelper.SearchBooksByName(searchName);
+
+            if (searchResults.Any())
+            {
+                DataGridBooks.ItemsSource = searchResults;
             }
             else
             {
-                // If the search query is empty, reload all data
-                LoadPeople();
+                MessageBox.Show("შესაბამისი წიგნი ვერ მოიძებნა", "Search Results", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
+
+
+
     }
+
 }

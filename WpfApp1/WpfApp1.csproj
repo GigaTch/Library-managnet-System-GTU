@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="akavache.sqlite3" Version="10.1.6" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.119" />
   </ItemGroup>
 
